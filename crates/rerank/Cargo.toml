@@ -1,0 +1,8 @@
+[package]
+name = "rerank"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+# Future: onnxruntime for cross-encoder reranking

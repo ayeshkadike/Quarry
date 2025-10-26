@@ -1,0 +1,8 @@
+[package]
+name = "server"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+# Future: Axum server for headless mode

@@ -1,0 +1,38 @@
+# Sample Document: Introduction to Information Retrieval
+
+Information retrieval (IR) is the process of obtaining relevant information from a collection of information resources. The field of information retrieval has evolved significantly over the past several decades.
+
+## History
+
+The origins of information retrieval can be traced back to library science in the 1950s. Early systems focused on bibliographic references and card catalogs.
+
+## Key Concepts
+
+### Relevance
+Relevance is the fundamental concept in IR. A document is considered relevant if it satisfies the user's information need.
+
+### Recall and Precision
+These are the two primary metrics used to evaluate IR systems:
+- Recall: The proportion of relevant documents retrieved
+- Precision: The proportion of retrieved documents that are relevant
+
+## Modern Approaches
+
+Today's information retrieval systems use various techniques:
+
+1. **Boolean Retrieval**: Based on Boolean logic queries
+2. **Vector Space Model**: Represents documents and queries as vectors
+3. **Probabilistic Models**: Use probability theory to rank documents
+4. **Neural Models**: Deep learning approaches for retrieval
+
+## Challenges
+
+Information retrieval faces several challenges:
+- Vocabulary mismatch between queries and documents
+- Understanding user intent
+- Handling multilingual content
+- Dealing with noisy or incomplete data
+
+## Conclusion
+
+Information retrieval continues to be a vital field, especially with the exponential growth of digital information. Modern search engines represent the culmination of decades of research in this area.

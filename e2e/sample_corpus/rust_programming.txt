@@ -1,0 +1,65 @@
+# Sample Document: Rust Programming Language
+
+Rust is a systems programming language that focuses on safety, speed, and concurrency. It was first released in 2010 and has gained significant popularity in recent years.
+
+## Key Features
+
+### Memory Safety
+Rust's ownership system ensures memory safety without needing a garbage collector. This prevents common bugs like:
+- Null pointer dereferences
+- Buffer overflows
+- Data races in concurrent code
+
+### Zero-Cost Abstractions
+Rust provides high-level abstractions that compile down to efficient machine code, with no runtime overhead.
+
+### Fearless Concurrency
+The type system and ownership model make it easier to write concurrent programs that are free from data races.
+
+## Core Concepts
+
+### Ownership
+Every value in Rust has an owner. When the owner goes out of scope, the value is dropped. Ownership can be transferred (moved) or temporarily loaned (borrowed).
+
+### Borrowing
+References allow you to refer to a value without taking ownership. Rust enforces rules:
+- You can have many immutable references OR one mutable reference
+- References must always be valid
+
+### Lifetimes
+Lifetimes ensure that references don't outlive the data they point to, preventing dangling pointers.
+
+## Cargo
+Cargo is Rust's build system and package manager. It handles:
+- Building your project
+- Downloading dependencies
+- Running tests
+- Publishing packages to crates.io
+
+## Common Use Cases
+
+Rust excels in several domains:
+- Systems programming: Operating systems, device drivers
+- WebAssembly: High-performance web applications
+- Embedded systems: IoT devices and firmware
+- Command-line tools: Fast, reliable CLI applications
+- Networking: Web servers and proxies
+- Game development: Game engines and tools
+
+## Learning Resources
+
+The Rust community provides excellent learning materials:
+- The Rust Book: Comprehensive introduction
+- Rust by Example: Learn through practical examples
+- Rustlings: Small exercises to get you started
+- The Rust Programming Language Forum
+
+## Community
+
+Rust has a welcoming and active community. The language emphasizes:
+- Inclusivity and diversity
+- Helpful error messages
+- Comprehensive documentation
+- Active development and regular releases
+
+Rust continues to grow in adoption across many industries, from startups to major tech companies.
