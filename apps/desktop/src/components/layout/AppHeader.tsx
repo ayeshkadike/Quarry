@@ -40,7 +40,7 @@ export function AppHeader({
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-accent-hover flex items-center justify-center">
             <Sparkles size={18} className="text-white" />
           </div>
-          <h1 className="text-lg font-semibold text-fg-strong">AI Search</h1>
+          <h1 className="text-lg font-semibold text-fg-strong">Quarry</h1>
         </div>
       </div>
 

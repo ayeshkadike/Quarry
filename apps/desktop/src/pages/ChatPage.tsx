@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Message, Source, Collection, QuotaInfo } from '@/types';
+import { useState, useEffect } from 'react';
+import { Message, Source, Collection, QuotaInfo, SearchRequest } from '@/types';
 import { AppHeader } from '../components/layout/AppHeader';
 import { ChatMessage } from '../components/chat/ChatMessage';
 import { Composer } from '../components/chat/Composer';
@@ -7,13 +7,7 @@ import { SourcesPanel } from '../components/chat/SourcesPanel';
 import { Button } from '../components/ui/Button';
 import { PanelRightClose, PanelRightOpen, FileUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-// Mock data
-const MOCK_COLLECTIONS: Collection[] = [
-  { id: '1', name: 'Tech Docs', created_at: '2024-01-01T00:00:00Z', doc_count: 42 },
-  { id: '2', name: 'Research Papers', created_at: '2024-01-02T00:00:00Z', doc_count: 18 },
-  { id: '3', name: 'Project Notes', created_at: '2024-01-03T00:00:00Z', doc_count: 127 },
-];
+import { invoke } from '@tauri-apps/api/tauri';
 
 const MOCK_QUOTA: QuotaInfo = {
   webSearchUsed: 45,
@@ -22,131 +16,46 @@ const MOCK_QUOTA: QuotaInfo = {
   generationTokensLimit: 1000000,
 };
 
-const MOCK_MESSAGES: Message[] = [
-  {
-    id: '1',
-    role: 'user',
-    content: 'What are the key differences between Rust and C++ in terms of memory safety?',
-    timestamp: new Date('2024-10-26T10:00:00'),
-  },
-  {
-    id: '2',
-    role: 'assistant',
-    content: `Rust and C++ take fundamentally different approaches to memory safety:
-
-## Ownership System
-Rust enforces memory safety at **compile time** through its ownership system. Every value has a single owner, and when the owner goes out of scope, the value is automatically dropped. This prevents:
-- Use-after-free bugs
-- Double-free errors  
-- Memory leaks (in most cases)
-
-\`\`\`rust
-fn main() {
-    let s1 = String::from("hello");
-    let s2 = s1; // s1 is moved to s2
-    // println!("{}", s1); // This won't compile!
-}
-\`\`\`
-
-## Borrowing & References
-Rust's borrow checker ensures that you can have either:
-- **One mutable reference** OR
-- **Multiple immutable references**
-
-This prevents data races at compile time.
-
-## C++ Approach
-C++ provides tools like smart pointers (\`unique_ptr\`, \`shared_ptr\`) but doesn't enforce their use. Memory safety is the programmer's responsibility, making it more flexible but error-prone.
-
-The key advantage of Rust is that memory safety bugs are caught at compile time rather than runtime, leading to more reliable software.`,
-    citations: [
-      {
-        id: 'c1',
-        kind: 'local',
-        label: 'L1',
-        title: 'The Rust Programming Language - Chapter 4',
-        docId: 'rust-book-ch4',
-        chunkId: 'ownership',
-        score: 0.92,
-      },
-      {
-        id: 'c2',
-        kind: 'local',
-        label: 'L2',
-        title: 'Rust vs C++ Memory Management',
-        docId: 'rust-vs-cpp',
-        chunkId: 'memory',
-        score: 0.88,
-      },
-      {
-        id: 'c3',
-        kind: 'web',
-        label: 'W1',
-        title: 'Memory Safety in Systems Programming',
-        url: 'https://blog.rust-lang.org/2024/05/01/memory-safety.html',
-        score: 0.85,
-        freshness: 'new',
-      },
-    ],
-    meta: {
-      model: 'Local',
-      tokens: 342,
-      timeMs: 1580,
-      tokensPerSecond: 216.5,
-    },
-    timestamp: new Date('2024-10-26T10:00:15'),
-  },
-];
-
-const MOCK_SOURCES: Source[] = [
-  {
-    id: 's1',
-    kind: 'local',
-    title: 'The Rust Programming Language - Chapter 4: Ownership',
-    docId: 'rust-book-ch4',
-    score: 0.92,
-    preview: 'Ownership is Rust\'s most unique feature and has deep implications for the rest of the language. It enables Rust to make memory safety guarantees without needing a garbage collector...',
-    updatedAt: '2024-10-20T14:30:00Z',
-  },
-  {
-    id: 's2',
-    kind: 'local',
-    title: 'Rust vs C++ Memory Management Comparison',
-    docId: 'rust-vs-cpp',
-    score: 0.88,
-    preview: 'Both Rust and C++ are systems programming languages, but they take very different approaches to memory management. Rust enforces memory safety at compile time through its ownership system...',
-    updatedAt: '2024-10-18T09:15:00Z',
-  },
-  {
-    id: 's3',
-    kind: 'web',
-    title: 'Memory Safety in Systems Programming Languages',
-    url: 'https://blog.rust-lang.org/2024/05/01/memory-safety.html',
-    score: 0.85,
-    preview: 'Memory safety vulnerabilities remain one of the most common sources of security issues. This article explores how modern languages like Rust address these challenges...',
-    updatedAt: '2024-05-01T08:00:00Z',
-    domain: 'blog.rust-lang.org',
-  },
-  {
-    id: 's4',
-    kind: 'web',
-    title: 'Smart Pointers in C++ and Rust',
-    url: 'https://www.modernescpp.com/articles/smart-pointers',
-    score: 0.78,
-    preview: 'Smart pointers provide automatic memory management in C++. Rust takes this concept further by making ownership and borrowing first-class language features...',
-    updatedAt: '2024-09-15T12:00:00Z',
-    domain: 'modernescpp.com',
-  },
-];
-
 export function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>(MOCK_MESSAGES);
-  const [sources, setSources] = useState<Source[]>(MOCK_SOURCES);
-  const [selectedCollection, setSelectedCollection] = useState<string>('1');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [showSourcesPanel, setShowSourcesPanel] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSendMessage = (content: string) => {
+  // Load collections on mount
+  useEffect(() => {
+    loadCollections();
+  }, []);
+
+  const loadCollections = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const cols = await invoke<Collection[]>('list_collections');
+      setCollections(cols);
+      
+      // Auto-select first collection if available
+      if (cols.length > 0 && !selectedCollection) {
+        setSelectedCollection(cols[0].id);
+      }
+    } catch (err) {
+      console.error('Failed to load collections:', err);
+      setError('Failed to load collections. Please check if the backend is running.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSendMessage = async (content: string) => {
+    if (!selectedCollection) {
+      setError('Please select a collection first');
+      return;
+    }
+
     // Add user message
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
@@ -157,35 +66,97 @@ export function ChatPage() {
 
     setMessages((prev) => [...prev, userMessage]);
     setIsGenerating(true);
+    setError(null);
 
-    // Simulate assistant response
-    setTimeout(() => {
+    try {
+      const startTime = Date.now();
+      
+      // Call search API
+      const searchRequest: SearchRequest = {
+        collection_id: selectedCollection,
+        query: content,
+        top_k: 10,
+      };
+      
+      const results = await invoke<any[]>('search', { req: searchRequest });
+      const endTime = Date.now();
+      const timeMs = endTime - startTime;
+
+      // Convert search results to sources
+      const newSources: Source[] = results.map((result, idx) => ({
+        id: result.id,
+        kind: 'local' as const,
+        title: result.source?.title || `Document ${idx + 1}`,
+        docId: result.source?.doc_id || result.id,
+        score: result.score,
+        preview: result.text.substring(0, 200) + (result.text.length > 200 ? '...' : ''),
+        updatedAt: new Date().toISOString(),
+      }));
+
+      setSources(newSources);
+
+      // Generate assistant response from search results
+      const responseContent = formatSearchResults(results);
+      const citations = results.slice(0, 5).map((result, idx) => ({
+        id: `cite-${result.id}`,
+        kind: 'local' as const,
+        label: `L${idx + 1}`,
+        title: result.source?.title || `Document ${idx + 1}`,
+        docId: result.source?.doc_id || result.id,
+        chunkId: result.id,
+        score: result.score,
+      }));
+
       const assistantMessage: Message = {
         id: `msg-${Date.now()}-assistant`,
         role: 'assistant',
-        content: 'This is a mock response. In a real implementation, this would call your search and generation API.',
-        isStreaming: true,
+        content: responseContent,
+        citations,
         timestamp: new Date(),
         meta: {
           model: 'Local',
-          tokens: 45,
-          timeMs: 850,
-          tokensPerSecond: 52.9,
+          tokens: Math.floor(responseContent.length / 4), // rough estimate
+          timeMs,
+          tokensPerSecond: Math.floor((responseContent.length / 4) / (timeMs / 1000)),
         },
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+    } catch (err) {
+      console.error('Search failed:', err);
+      setError(`Search failed: ${err}`);
+      
+      // Add error message
+      const errorMessage: Message = {
+        id: `msg-${Date.now()}-error`,
+        role: 'assistant',
+        content: `Sorry, I encountered an error while searching: ${err}`,
+        timestamp: new Date(),
+      };
+      
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
-      // Simulate streaming complete
-      setTimeout(() => {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantMessage.id ? { ...m, isStreaming: false } : m
-          )
-        );
-        setIsGenerating(false);
-      }, 1500);
-    }, 500);
+  const formatSearchResults = (results: any[]): string => {
+    if (results.length === 0) {
+      return "I couldn't find any relevant information in the selected collection. Try rephrasing your query or selecting a different collection.";
+    }
+
+    let content = "Based on the documents in your collection, here's what I found:\n\n";
+    
+    results.slice(0, 3).forEach((result, idx) => {
+      content += `**Source ${idx + 1}** (score: ${result.score.toFixed(2)}):\n`;
+      content += `${result.text}\n\n`;
+    });
+
+    if (results.length > 3) {
+      content += `\n_Found ${results.length - 3} more relevant sources. Check the Sources panel for details._`;
+    }
+
+    return content;
   };
 
   const handleCitationClick = (citationId: string) => {
@@ -212,7 +183,7 @@ export function ChatPage() {
     <div className="flex flex-col h-screen bg-app">
       {/* Header */}
       <AppHeader
-        collections={MOCK_COLLECTIONS}
+        collections={collections}
         selectedCollection={selectedCollection}
         onCollectionChange={setSelectedCollection}
         quota={MOCK_QUOTA}
@@ -224,30 +195,59 @@ export function ChatPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Chat Area */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto">
-            {messages.length === 0 ? (
-              <EmptyState onIngest={handleIngest} />
-            ) : (
-              <div className="max-w-4xl mx-auto">
-                {messages.map((message) => (
-                  <ChatMessage
-                    key={message.id}
-                    message={message}
-                    onCitationClick={handleCitationClick}
-                  />
-                ))}
+          {/* Loading & Error States */}
+          {isLoading && (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center space-y-3">
+                <div className="animate-spin w-8 h-8 border-4 border-accent border-t-transparent rounded-full mx-auto" />
+                <p className="text-fg-muted">Loading collections...</p>
               </div>
-            )}
-          </div>
+            </div>
+          )}
+          
+          {error && !isLoading && (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="max-w-md text-center space-y-3 p-6">
+                <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto">
+                  <span className="text-red-500 text-2xl">⚠</span>
+                </div>
+                <p className="text-fg-strong font-medium">Error</p>
+                <p className="text-fg-muted text-sm">{error}</p>
+                <Button onClick={loadCollections} variant="secondary" className="mt-4">
+                  Retry
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Messages */}
+          {!isLoading && !error && (
+            <div className="flex-1 overflow-y-auto">
+              {messages.length === 0 ? (
+                <EmptyState onIngest={handleIngest} hasCollections={collections.length > 0} />
+              ) : (
+                <div className="max-w-4xl mx-auto">
+                  {messages.map((message) => (
+                    <ChatMessage
+                      key={message.id}
+                      message={message}
+                      onCitationClick={handleCitationClick}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Composer */}
-          <Composer
-            onSend={handleSendMessage}
-            onAttach={handleIngest}
-            disabled={isGenerating}
-            model="Local"
-          />
+          {!isLoading && !error && (
+            <Composer
+              onSend={handleSendMessage}
+              onAttach={handleIngest}
+              disabled={isGenerating || !selectedCollection}
+              model="Local"
+            />
+          )}
         </div>
 
         {/* Sources Panel */}
@@ -298,7 +298,7 @@ export function ChatPage() {
   );
 }
 
-function EmptyState({ onIngest }: { onIngest: () => void }) {
+function EmptyState({ onIngest, hasCollections }: { onIngest: () => void; hasCollections: boolean }) {
   const samplePrompts = [
     'Explain the difference between async/await and threads',
     'How does the borrow checker work in Rust?',
@@ -316,10 +316,12 @@ function EmptyState({ onIngest }: { onIngest: () => void }) {
         {/* Title & Description */}
         <div className="space-y-2">
           <h2 className="text-2xl font-semibold text-fg-strong">
-            Start a conversation
+            {hasCollections ? 'Start a conversation' : 'Welcome to Quarry'}
           </h2>
           <p className="text-fg-muted">
-            Ask questions about your documents or try one of these examples
+            {hasCollections 
+              ? 'Ask questions about your documents or try one of these examples'
+              : 'Create a collection and ingest documents to get started'}
           </p>
         </div>
 

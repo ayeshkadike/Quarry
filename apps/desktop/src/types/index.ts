@@ -56,12 +56,15 @@ export interface SearchResult {
   id: string;
   text: string;
   score: number;
-  source: {
-    type: string;
-    title?: string;
-    doc_id?: string;
-    chunk_id?: string;
-  };
+  source: any;
+  start_char?: number;
+  end_char?: number;
+}
+
+export interface SearchRequest {
+  collection_id: string;
+  query: string;
+  top_k: number;
 }
 
 export interface QuotaInfo {
