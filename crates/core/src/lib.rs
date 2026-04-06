@@ -3,6 +3,7 @@ pub mod embeddings;
 pub mod fusion;
 pub mod search;
 pub mod tantivy_index;
+pub mod vector_index;
 
 pub use api::*;
 

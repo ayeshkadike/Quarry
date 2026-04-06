@@ -66,6 +66,8 @@ pub async fn list_collections(
             .await
             .map_err(|e| e.to_string())?;
 
+        tracing::info!("Collection '{}' (id: {}) has {} documents", col.name, col.id, docs.len());
+
         result.push(CollectionInfo {
             id: col.id,
             name: col.name,
@@ -220,6 +222,11 @@ async fn run_ingestion(
             ingest::parse::ParsedDoc::Text { title, content } => (title, content),
         };
 
+        // Detect MIME type from file extension
+        let mime_type = mime_guess::from_path(&file_path)
+            .first_or_octet_stream()
+            .to_string();
+
         // Create document record
         let doc = service
             .create_document(
@@ -227,10 +234,12 @@ async fn run_ingestion(
                 &file_path.display().to_string(),
                 &file_hash,
                 Some(&title),
-                Some("text/plain"),
+                Some(&mime_type),
                 Some(file_bytes.len() as i64),
             )
             .await?;
+        
+        tracing::info!("Created document {} for collection {}", doc.id, collection_id);
 
         // Chunk content
         let chunks = chunk_text(&content, settings.chunk_size, settings.chunk_overlap);
@@ -260,6 +269,18 @@ async fn run_ingestion(
 
         // Update document status
         service.update_document_status(&doc.id, "indexed").await?;
+
+        // Update progress counter
+        {
+            let mut jobs = state.ingest_jobs.lock().unwrap();
+            // Find the job for this collection (most recent running one)
+            for job in jobs.values_mut() {
+                if job.collection_id == collection_id && job.status == "running" {
+                    job.processed_files += 1;
+                    break;
+                }
+            }
+        }
 
         tracing::info!("Indexed document: {}", title);
     }

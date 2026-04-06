@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Message, Source, Collection, QuotaInfo, SearchRequest } from '@/types';
+import { Message, Source, Collection, QuotaInfo } from '@/types';
 import { AppHeader } from '../components/layout/AppHeader';
+import { IngestDrawer } from '../components/layout/IngestDrawer';
+import { CreateCollectionModal } from '../components/layout/CreateCollectionModal';
 import { ChatMessage } from '../components/chat/ChatMessage';
 import { Composer } from '../components/chat/Composer';
 import { SourcesPanel } from '../components/chat/SourcesPanel';
@@ -22,9 +24,12 @@ export function ChatPage() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [showSourcesPanel, setShowSourcesPanel] = useState(true);
+  const [showIngestDrawer, setShowIngestDrawer] = useState(false);
+  const [showCreateCollectionModal, setShowCreateCollectionModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [highlightedSourceId, setHighlightedSourceId] = useState<string | null>(null);
 
   // Load collections on mount
   useEffect(() => {
@@ -71,14 +76,14 @@ export function ChatPage() {
     try {
       const startTime = Date.now();
       
-      // Call search API
-      const searchRequest: SearchRequest = {
-        collection_id: selectedCollection,
-        query: content,
-        top_k: 10,
-      };
-      
-      const results = await invoke<any[]>('search', { req: searchRequest });
+      // Call search API - use snake_case for the nested req object
+      const results = await invoke<any[]>('search', { 
+        req: {
+          collection_id: selectedCollection,
+          query: content,
+          top_k: 10,
+        }
+      });
       const endTime = Date.now();
       const timeMs = endTime - startTime;
 
@@ -160,8 +165,16 @@ export function ChatPage() {
   };
 
   const handleCitationClick = (citationId: string) => {
-    console.log('Citation clicked:', citationId);
-    // In real implementation: scroll to source in panel
+    // Find the source that matches this citation
+    const citation = messages
+      .flatMap(m => m.citations || [])
+      .find(c => c.id === citationId);
+    if (citation) {
+      setHighlightedSourceId(citation.chunkId || citation.docId || null);
+      setShowSourcesPanel(true);
+      // Clear highlight after 3 seconds
+      setTimeout(() => setHighlightedSourceId(null), 3000);
+    }
   };
 
   const handleSourceClick = (sourceId: string) => {
@@ -170,8 +183,26 @@ export function ChatPage() {
   };
 
   const handleIngest = () => {
-    console.log('Open ingest drawer');
-    // In real implementation: open IngestDrawer component
+    setShowIngestDrawer(true);
+  };
+
+  const handleIngestClose = () => {
+    setShowIngestDrawer(false);
+    // Reload collections to update doc counts (with small delay to ensure DB commit)
+    setTimeout(() => {
+      loadCollections();
+    }, 500);
+  };
+
+  const handleCreateCollection = () => {
+    setShowCreateCollectionModal(true);
+  };
+
+  const handleCreateCollectionSuccess = (collectionId: string) => {
+    setShowCreateCollectionModal(false);
+    // Reload collections and auto-select the new one
+    loadCollections();
+    setSelectedCollection(collectionId);
   };
 
   const handleSettings = () => {
@@ -186,6 +217,7 @@ export function ChatPage() {
         collections={collections}
         selectedCollection={selectedCollection}
         onCollectionChange={setSelectedCollection}
+        onCreateCollection={handleCreateCollection}
         quota={MOCK_QUOTA}
         model="Local"
         onSettingsClick={handleSettings}
@@ -224,7 +256,7 @@ export function ChatPage() {
           {!isLoading && !error && (
             <div className="flex-1 overflow-y-auto">
               {messages.length === 0 ? (
-                <EmptyState onIngest={handleIngest} hasCollections={collections.length > 0} />
+                <EmptyState onIngest={handleIngest} onSend={handleSendMessage} hasCollections={collections.length > 0} />
               ) : (
                 <div className="max-w-4xl mx-auto">
                   {messages.map((message) => (
@@ -274,7 +306,7 @@ export function ChatPage() {
                 </div>
 
                 {/* Sources List */}
-                <SourcesPanel sources={sources} onSourceClick={handleSourceClick} />
+                <SourcesPanel sources={sources} onSourceClick={handleSourceClick} highlightedSourceId={highlightedSourceId} />
               </div>
             </motion.div>
           )}
@@ -294,11 +326,28 @@ export function ChatPage() {
           </div>
         )}
       </div>
+
+      {/* Ingest Drawer */}
+      {showIngestDrawer && selectedCollection && (
+        <IngestDrawer
+          isOpen={showIngestDrawer}
+          onClose={handleIngestClose}
+          collectionId={selectedCollection}
+          collectionName={collections.find(c => c.id === selectedCollection)?.name || 'Collection'}
+        />
+      )}
+
+      {/* Create Collection Modal */}
+      <CreateCollectionModal
+        isOpen={showCreateCollectionModal}
+        onClose={() => setShowCreateCollectionModal(false)}
+        onSuccess={handleCreateCollectionSuccess}
+      />
     </div>
   );
 }
 
-function EmptyState({ onIngest, hasCollections }: { onIngest: () => void; hasCollections: boolean }) {
+function EmptyState({ onIngest, onSend, hasCollections }: { onIngest: () => void; onSend: (content: string) => void; hasCollections: boolean }) {
   const samplePrompts = [
     'Explain the difference between async/await and threads',
     'How does the borrow checker work in Rust?',
@@ -325,29 +374,28 @@ function EmptyState({ onIngest, hasCollections }: { onIngest: () => void; hasCol
           </p>
         </div>
 
-        {/* Sample Prompts */}
-        <div className="grid gap-3">
-          {samplePrompts.map((prompt, idx) => (
-            <button
-              key={idx}
-              onClick={() => {
-                // In real implementation: pre-fill composer with prompt
-                console.log('Sample prompt:', prompt);
-              }}
-              className="p-4 rounded-xl border border-stroke bg-elev-1 hover:border-accent/40 hover:bg-accent/5 transition-all text-left group"
-            >
-              <p className="text-sm text-fg-default group-hover:text-accent transition-colors">
-                {prompt}
-              </p>
-            </button>
-          ))}
-        </div>
+        {/* Sample Prompts - only show if has collections */}
+        {hasCollections && (
+          <div className="grid gap-3">
+            {samplePrompts.map((prompt, idx) => (
+              <button
+                key={idx}
+                onClick={() => onSend(prompt)}
+                className="p-4 rounded-xl border border-stroke bg-elev-1 hover:border-accent/40 hover:bg-accent/5 transition-all text-left group"
+              >
+                <p className="text-sm text-fg-default group-hover:text-accent transition-colors">
+                  {prompt}
+                </p>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* CTA */}
         <div className="pt-4">
           <Button onClick={onIngest} size="lg" className="gap-2">
             <FileUp size={18} />
-            Ingest Documents
+            {hasCollections ? 'Add More Documents' : 'Get Started - Ingest Documents'}
           </Button>
         </div>
       </div>

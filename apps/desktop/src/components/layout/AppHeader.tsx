@@ -2,7 +2,7 @@ import { Collection, QuotaInfo } from '@/types';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
-import { Settings, Moon, Sun, Monitor, ChevronDown, Sparkles } from 'lucide-react';
+import { Settings, Moon, Sun, Monitor, ChevronDown, Sparkles, Plus } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useTheme } from '@/lib/useTheme';
 import { motion } from 'framer-motion';
@@ -11,6 +11,7 @@ interface AppHeaderProps {
   collections: Collection[];
   selectedCollection: string | null;
   onCollectionChange: (id: string) => void;
+  onCreateCollection: () => void;
   quota?: QuotaInfo;
   model?: string;
   onSettingsClick: () => void;
@@ -20,6 +21,7 @@ export function AppHeader({
   collections,
   selectedCollection,
   onCollectionChange,
+  onCreateCollection,
   quota,
   model = 'Local',
   onSettingsClick,
@@ -84,6 +86,27 @@ export function AppHeader({
                   </div>
                 </DropdownMenu.Item>
               ))}
+              
+              {/* Separator */}
+              {collections.length > 0 && (
+                <div className="h-px bg-stroke my-1" />
+              )}
+              
+              {/* New Collection Button */}
+              <DropdownMenu.Item
+                onClick={onCreateCollection}
+                className={cn(
+                  'px-4 py-3 text-sm outline-none cursor-pointer transition-colors',
+                  'hover:bg-hover',
+                  'focus:bg-hover',
+                  'text-accent font-medium'
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <Plus size={16} />
+                  <span>New Collection</span>
+                </div>
+              </DropdownMenu.Item>
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu.Root>

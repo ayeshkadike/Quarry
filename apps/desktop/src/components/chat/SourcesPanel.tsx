@@ -4,14 +4,16 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { FileText, Globe, ExternalLink, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useEffect, useRef } from 'react';
 
 interface SourcesPanelProps {
   sources: Source[];
   onSourceClick?: (sourceId: string) => void;
+  highlightedSourceId?: string | null;
   className?: string;
 }
 
-export function SourcesPanel({ sources, onSourceClick, className }: SourcesPanelProps) {
+export function SourcesPanel({ sources, onSourceClick, highlightedSourceId, className }: SourcesPanelProps) {
   const localSources = sources.filter((s) => s.kind === 'local');
   const webSources = sources.filter((s) => s.kind === 'web');
 
@@ -20,13 +22,23 @@ export function SourcesPanel({ sources, onSourceClick, className }: SourcesPanel
     const domain = source.url ? getDomainFromUrl(source.url) : '';
     const initial = domain ? getDomainInitial(domain) : 'L';
 
+    const isHighlighted = source.id === highlightedSourceId;
+    const ref = useRef<HTMLButtonElement>(null);
+
+    useEffect(() => {
+      if (isHighlighted && ref.current) {
+        ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, [isHighlighted]);
+
     return (
       <motion.button
+        ref={ref}
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ delay: index * 0.05, duration: 0.2 }}
         onClick={() => onSourceClick?.(source.id)}
-        className="w-full text-left group"
+        className={cn('w-full text-left group', isHighlighted && 'ring-2 ring-accent rounded-xl')}
       >
         <Card className="hover:border-stroke-hover hover:shadow-md transition-all duration-150 overflow-hidden">
           <div className="p-4 space-y-3">

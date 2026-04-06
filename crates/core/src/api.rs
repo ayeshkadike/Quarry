@@ -45,18 +45,31 @@ pub trait Reranker: Send + Sync {
     fn rerank(&self, query: &str, cands: Vec<Candidate>) -> anyhow::Result<Vec<Candidate>>;
 }
 
-/// Hybrid search combining local retrieval with optional reranking
+/// Hybrid search combining BM25 + vector retrieval with optional reranking
 pub struct HybridSearch<'a> {
-    pub local: &'a dyn Retriever,
+    pub bm25: &'a dyn Retriever,
+    pub vector: Option<&'a dyn Retriever>,
     pub reranker: Option<&'a dyn Reranker>,
+    /// Balance between BM25 and vector results (0.0 = BM25 only, 1.0 = vector only)
+    pub alpha: f32,
 }
 
 impl<'a> HybridSearch<'a> {
+    /// Create a BM25-only search (backward compatible)
     pub fn new(local: &'a dyn Retriever) -> Self {
         Self {
-            local,
+            bm25: local,
+            vector: None,
             reranker: None,
+            alpha: 0.5,
         }
+    }
+
+    /// Add a vector retriever for hybrid search
+    pub fn with_vector(mut self, vector: &'a dyn Retriever, alpha: f32) -> Self {
+        self.vector = Some(vector);
+        self.alpha = alpha.clamp(0.0, 1.0);
+        self
     }
 
     pub fn with_reranker(mut self, reranker: &'a dyn Reranker) -> Self {
@@ -65,14 +78,23 @@ impl<'a> HybridSearch<'a> {
     }
 
     pub fn search(&self, query: &str, k: usize) -> anyhow::Result<Vec<Candidate>> {
-        // Retrieve more candidates than needed for reranking
-        let retrieve_k = if self.reranker.is_some() {
+        // Retrieve more candidates than needed for reranking/fusion
+        let retrieve_k = if self.reranker.is_some() || self.vector.is_some() {
             (k * 10).min(100)
         } else {
             k
         };
 
-        let mut candidates = self.local.retrieve(query, retrieve_k)?;
+        let mut candidates = if let Some(vector_retriever) = self.vector {
+            // Hybrid mode: retrieve from both and fuse
+            let bm25_results = self.bm25.retrieve(query, retrieve_k)?;
+            let vector_results = vector_retriever.retrieve(query, retrieve_k)?;
+
+            crate::fusion::linear_fusion(bm25_results, vector_results, 1.0 - self.alpha)?
+        } else {
+            // BM25-only mode
+            self.bm25.retrieve(query, retrieve_k)?
+        };
 
         if let Some(reranker) = self.reranker {
             candidates = reranker.rerank(query, candidates)?;

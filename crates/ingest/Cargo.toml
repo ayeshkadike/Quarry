@@ -10,6 +10,9 @@ sha2.workspace = true
 walkdir.workspace = true
 mime_guess.workspace = true
 tracing.workspace = true
+pdf-extract = "0.7"
+pulldown-cmark = "0.10"
+scraper = "0.18"
 
 [dev-dependencies]
 tempfile = "3"

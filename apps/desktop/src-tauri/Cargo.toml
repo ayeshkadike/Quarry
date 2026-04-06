@@ -27,6 +27,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 walkdir = { workspace = true }
 dirs = "5"
+mime_guess.workspace = true
 
 # Local crates
 core_lib = { path = "../../../crates/core", package = "core" }
